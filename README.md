@@ -77,6 +77,16 @@ npm install
 npm start
 ```
 
+### Alternative: Docker Setup 🐳
+
+For a containerized setup with consistent environments across machines:
+
+```bash
+docker-compose up
+```
+
+See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed Docker instructions.
+
 ## 📁 Project Structure
 
 ```
