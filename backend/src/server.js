@@ -14,6 +14,12 @@ import { gracefulShutdown } from './utils/shutdown.util.js';
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// 🔗 MongoDB connection
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB connection error:", err));
+
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(tracingMiddleware);
