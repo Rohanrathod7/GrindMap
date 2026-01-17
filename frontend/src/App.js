@@ -46,7 +46,7 @@ function App() {
 
       try {
         if (plat.key === 'leetcode') {
-          const res = await fetch(`http://localhost:5000/api/leetcode/${username}`);
+          const res = await fetch(`http://localhost:5001/api/leetcode/${username}`);
           const result = await res.json();
           if (result.data) {
             newData.leetcode = result.data;
@@ -54,30 +54,32 @@ function App() {
             newData.leetcode = { error: 'User not found' };
           }
         } else if (plat.key === 'codeforces') {
-          const infoRes = await fetch(`https://codeforces.com/api/user.info?handles=${username}`);
-          const info = await infoRes.json();
-          if (info.status === "OK") {
-            const rating = info.result[0].rating || 0;
-            const rank = info.result[0].rank || 'unrated';
-
-            const statusRes = await fetch(`https://codeforces.com/api/user.status?handle=${username}`);
-            const status = await statusRes.json();
-            const solved = new Set(
-              status.result?.filter(s => s.verdict === "OK")
-                .map(s => `${s.problem.contestId}-${s.problem.index}`) || []
-            ).size;
-
-            newData.codeforces = { rating, rank, solved };
+          const res = await fetch(`http://localhost:5001/api/codeforces/${username}`);
+          const result = await res.json();
+          if (result.success && result.data) {
+            const stats = result.data.stats;
+            newData.codeforces = {
+              rating: stats.rating,
+              rank: stats.rank,
+              solved: stats.totalSolved
+            };
           } else {
-            newData.codeforces = { error: 'User not found' };
+            newData.codeforces = { error: result.error || 'Failed to fetch' };
           }
         } else if (plat.key === 'codechef') {
-          const res = await fetch(`https://codechef-api.vercel.app/handle/${username}`);
+          const res = await fetch(`http://localhost:5001/api/codechef/${username}`);
           const result = await res.json();
-          if (result.rating) {
-            newData.codechef = result;
+          if (result.success && result.data) {
+            const stats = result.data.stats;
+            newData.codechef = {
+              rating: stats.rating,
+              problem_fully_solved: stats.totalSolved,
+              total_stars: 0,
+              global_rank: stats.rank,
+              country_rank: ''
+            };
           } else {
-            newData.codechef = { error: 'User not found' };
+            newData.codechef = { error: result.error || 'Failed to fetch' };
           }
         }
       } catch (err) {
