@@ -26,6 +26,8 @@ const MAX_HISTORY = 5;
 
 function UsernameInputs({ usernames, onChange, onFetch, loading }) {
   const [errors, setErrors] = useState({});
+  const [focusedPlatform, setFocusedPlatform] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [history, setHistory] = useState(() => {
     try {
       const stored = localStorage.getItem(HISTORY_KEY);
@@ -84,18 +86,9 @@ function UsernameInputs({ usernames, onChange, onFetch, loading }) {
   const handleFetch = () => {
     // Check for blocking errors
     const hasErrors = Object.values(errors).some((e) => e);
-    // basic check: at least one username should probably be present, but user request only said "Prevent ... if input field is empty"
-    // Assuming this means "don't fetch for empty fields" which App.js already does.
-    // But if ALL are empty, maybe warn?
     const allEmpty = Object.keys(PLATFORM_CONFIG).every((k) => !usernames[k]);
 
-    if (hasErrors) {
-      return; // Button should be disabled or we just return.
-    }
-    if (allEmpty) {
-      // Optional: could set a general error
-      return;
-    }
+    if (hasErrors || allEmpty) return;
 
     // Save to history before fetching
     const newHistory = { ...history };
@@ -105,29 +98,61 @@ function UsernameInputs({ usernames, onChange, onFetch, loading }) {
       const user = usernames[platform];
       if (user && !errors[platform]) {
         const currentList = newHistory[platform] || [];
-        // Remove if exists to move to top
         const filtered = currentList.filter((u) => u !== user);
-        // Add to front
         filtered.unshift(user);
-        // Limit
         newHistory[platform] = filtered.slice(0, MAX_HISTORY);
         changed = true;
       }
     });
 
-    if (changed) {
-      saveHistory(newHistory);
-    }
-
+    if (changed) saveHistory(newHistory);
     onFetch();
   };
 
   const removeHistoryItem = (platform, user, e) => {
-    e.stopPropagation(); // Prevent clicking chip
+    e.stopPropagation(); // Prevent selection when deleting
     const newHistory = { ...history };
     if (newHistory[platform]) {
       newHistory[platform] = newHistory[platform].filter((u) => u !== user);
       saveHistory(newHistory);
+      // Adjust selectedIndex if needed
+      if (selectedIndex >= newHistory[platform].length) {
+        setSelectedIndex(newHistory[platform].length - 1);
+      }
+    }
+  };
+
+  const handleFocus = (platform) => {
+    setFocusedPlatform(platform);
+    setSelectedIndex(-1);
+  };
+
+  const handleBlur = () => {
+    // Small delay to allow clicking dropdown items
+    setTimeout(() => {
+      setFocusedPlatform(null);
+      setSelectedIndex(-1);
+    }, 200);
+  };
+
+  const handleKeyDown = (e, platform) => {
+    const platformHistory = history[platform] || [];
+    if (!platformHistory.length || focusedPlatform !== platform) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) =>
+        prev < platformHistory.length - 1 ? prev + 1 : prev,
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === "Enter" && selectedIndex >= 0) {
+      e.preventDefault();
+      validateAndChange(platform, platformHistory[selectedIndex]);
+      setFocusedPlatform(null);
+    } else if (e.key === "Escape") {
+      setFocusedPlatform(null);
     }
   };
 
@@ -140,78 +165,148 @@ function UsernameInputs({ usernames, onChange, onFetch, loading }) {
       {Object.keys(PLATFORM_CONFIG).map((key) => {
         const config = PLATFORM_CONFIG[key];
         const platformHistory = history[key] || [];
+        const isFocused = focusedPlatform === key;
 
         return (
           <div
             key={key}
             className="input-group"
-            style={{ alignItems: "flex-start" }}
+            style={{ alignItems: "flex-start", position: "relative" }}
           >
             <label style={{ marginTop: "12px" }}>{config.name}</label>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                position: "relative",
+              }}
+            >
               <input
                 type="text"
                 value={usernames[key]}
                 onChange={(e) => validateAndChange(key, e.target.value)}
+                onFocus={() => handleFocus(key)}
+                onBlur={handleBlur}
+                onKeyDown={(e) => handleKeyDown(e, key)}
                 placeholder={config.placeholder}
                 style={{
                   borderColor: errors[key] ? "#ef4444" : undefined,
                   outlineColor: errors[key] ? "#ef4444" : undefined,
                 }}
               />
-              {/* History Chips */}
-              {platformHistory.length > 0 && (
+
+              {/* History Dropdown */}
+              {isFocused && platformHistory.length > 0 && (
                 <div
+                  className="history-dropdown"
                   style={{
-                    marginTop: "5px",
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "5px",
+                    position: "absolute",
+                    top: "45px",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "rgba(15, 23, 42, 0.95)", // dark slate
+                    backdropFilter: "blur(12px)",
+                    borderRadius: "12px",
+                    boxShadow:
+                      "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
+                    zIndex: 1000,
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    overflow: "hidden",
+                    animation: "dropdownFadeIn 0.2s ease-out",
                   }}
                 >
-                  <span
+                  <div
                     style={{
-                      fontSize: "0.8em",
-                      color: "#888",
-                      marginRight: "5px",
-                      alignSelf: "center",
+                      padding: "10px 14px",
+                      fontSize: "0.7em",
+                      fontWeight: "600",
+                      letterSpacing: "0.05em",
+                      color: "#64748b",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                      background: "rgba(255, 255, 255, 0.02)",
                     }}
                   >
-                    Recent:
-                  </span>
-                  {platformHistory.map((user) => (
-                    <div
-                      key={user}
-                      onClick={() => validateAndChange(key, user)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        backgroundColor: "#f3f4f6", // light gray
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "15px",
-                        padding: "2px 8px",
-                        fontSize: "0.85em",
-                        cursor: "pointer",
-                        color: "#374151",
-                      }}
-                      title={`Use ${user}`}
-                    >
-                      {user}
-                      <span
-                        onClick={(e) => removeHistoryItem(key, user, e)}
-                        style={{
-                          marginLeft: "6px",
-                          color: "#9ca3af",
-                          fontWeight: "bold",
-                          cursor: "pointer",
+                    RECENT SEARCHES
+                  </div>
+                  <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                    {platformHistory.map((user, index) => (
+                      <div
+                        key={user}
+                        onClick={() => {
+                          validateAndChange(key, user);
+                          setFocusedPlatform(null);
                         }}
-                        onMouseEnter={(e) => (e.target.style.color = "#ef4444")}
-                        onMouseLeave={(e) => (e.target.style.color = "#9ca3af")}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        style={{
+                          padding: "12px 14px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          color: index === selectedIndex ? "#fff" : "#cbd5e1",
+                          backgroundColor:
+                            index === selectedIndex
+                              ? "rgba(255, 255, 255, 0.1)"
+                              : "transparent",
+                        }}
                       >
-                        ×
-                      </span>
-                    </div>
-                  ))}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "1.1em",
+                              opacity: index === selectedIndex ? 1 : 0.5,
+                            }}
+                          >
+                            🕒
+                          </span>
+                          <span
+                            style={{
+                              fontWeight:
+                                index === selectedIndex ? "500" : "400",
+                            }}
+                          >
+                            {user}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => removeHistoryItem(key, user, e)}
+                          title="Remove from history"
+                          style={{
+                            padding: "4px 8px",
+                            color: "#64748b",
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "1.2em",
+                            borderRadius: "6px",
+                            transition: "all 0.2s",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.color = "#ef4444";
+                            e.target.style.backgroundColor =
+                              "rgba(239, 68, 68, 0.15)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.color = "#64748b";
+                            e.target.style.backgroundColor = "transparent";
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -237,10 +332,39 @@ function UsernameInputs({ usernames, onChange, onFetch, loading }) {
         onClick={handleFetch}
         disabled={loading || hasErrors || allEmpty}
         className="refresh-btn"
-        style={{ opacity: loading || hasErrors || allEmpty ? 0.6 : 1 }}
+        style={{
+          opacity: loading || hasErrors || allEmpty ? 0.6 : 1,
+          marginTop: "20px",
+        }}
       >
         {loading ? "Loading..." : "Refresh All"}
       </button>
+
+      <style>{`
+        @keyframes dropdownFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        .history-dropdown::-webkit-scrollbar {
+          width: 6px;
+        }
+        .history-dropdown::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .history-dropdown::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          borderRadius: 3px;
+        }
+        .history-dropdown::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+      `}</style>
     </div>
   );
 }
