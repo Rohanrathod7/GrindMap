@@ -9,6 +9,7 @@ import { sanitizeInput } from './middlewares/validation.middleware.js';
 import { generalLimiter } from './middlewares/rateLimiter.middleware.js';
 import { correlationId } from './middlewares/correlationId.middleware.js';
 import { performanceMetrics } from './middlewares/performance.middleware.js';
+import DistributedSessionManager from './utils/distributedSessionManager.js';
 
 // Import routes
 import scrapeRoutes from './routes/scrape.routes.js';
@@ -29,12 +30,15 @@ connectDB();
 app.use(correlationId);
 app.use(performanceMetrics);
 
+// Distributed session management
+app.use(DistributedSessionManager.middleware());
+
 // Security middleware
 app.use(securityHeaders);
 app.use(requestLogger);
 app.use(securityMonitor);
 
-// Rate limiting
+// Distributed rate limiting
 app.use(generalLimiter);
 
 // CORS configuration
@@ -56,7 +60,8 @@ app.get('/health', (req, res) => {
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
     environment: NODE_ENV,
-    correlationId: req.correlationId
+    correlationId: req.correlationId,
+    sessionActive: !!req.session
   });
 });
 
@@ -115,7 +120,8 @@ const server = app.listen(PORT, () => {
   Logger.info('Server started', {
     port: PORT,
     environment: NODE_ENV,
-    healthCheck: `http://localhost:${PORT}/health`
+    healthCheck: `http://localhost:${PORT}/health`,
+    features: ['distributed-rate-limiting', 'distributed-sessions']
   });
 });
 
