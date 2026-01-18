@@ -1,19 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import "./App.css";
 import CircularProgress from "./components/CircularProgress";
 
 import DemoPage from "./components/DemoPage";
-import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import BadgeCollection from "./components/BadgeCollection";
+import GoalDashboard from "./components/GoalDashboard";
 import UsernameInputs from "./components/UsernameInputs";
 import PlatformCard from "./components/PlatformCard";
+import ThemeToggle from "./components/ThemeToggle";
+
+import { ThemeProvider } from "./contexts/ThemeContext";
 import { useGrindMapData } from "./hooks/useGrindMapData";
 import { PLATFORMS, OVERALL_GOAL } from "./utils/platforms";
+import ErrorBoundary from "./components/ErrorBoundary";
 
-function App() {
+
+/* Lazy-loaded analytics dashboard */
+const AnalyticsDashboard = lazy(() =>
+  import("./components/AnalyticsDashboard")
+);
+
+function AppContent() {
   const [showDemo, setShowDemo] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
+  const [showGoals, setShowGoals] = useState(false);
   const [expanded, setExpanded] = useState(null);
 
   const {
@@ -31,150 +42,194 @@ function App() {
     setExpanded(expanded === key ? null : key);
   };
 
-  // Today's Activity Logic
   const today = new Date();
 
   return (
     <div className="app">
-      {showDemo ? (
-        <>
-          <DemoPage onBack={() => setShowDemo(false)} />
-        </>
-      ) : showAnalytics ? (
-        <>
-          <button onClick={() => setShowAnalytics(false)} className="back-btn">
-            ← Back to Main
-          </button>
-          <AnalyticsDashboard platformData={platformData} />
-        </>
-      ) : showBadges ? (
-        <>
-          <button onClick={() => setShowBadges(false)} className="back-btn">
-            ← Back to Main
-          </button>
-          <BadgeCollection />
-        </>
-      ) : (
-        <>
-          <div style={{ textAlign: "center", marginBottom: "20px" }}>
-            <button
-              onClick={() => setShowDemo(true)}
-              style={{
-                padding: "10px 20px",
-                fontSize: "1em",
-                background: "#667eea",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                marginRight: "10px",
-              }}
-            >
-              View Demo
-            </button>
-            <button
-              onClick={() => setShowAnalytics(true)}
-              style={{
-                padding: "10px 20px",
-                fontSize: "1em",
-                background: "#4caf50",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                marginRight: "10px",
-              }}
-            >
-              View Analytics
-            </button>
-            <button
-              onClick={() => setShowBadges(true)}
-              style={{
-                padding: "10px 20px",
-                fontSize: "1em",
-                background: "#9b59b6",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-              }}
-            >
-              🏆 Achievements
-            </button>
-          </div>
-          <h1>GrindMap</h1>
+      <div className="container">
 
-          <UsernameInputs
-            usernames={usernames}
-            onChange={handleChange}
-            onFetch={fetchAll}
-            loading={loading}
-          />
+        {showDemo ? (
+          <>
+            <DemoPage onBack={() => setShowDemo(false)} />
+          </>
+        ) : showAnalytics ? (
+          <>
+            <button onClick={() => setShowAnalytics(false)} className="back-btn">
+              ← Back to Main
+            </button>
+            <Suspense fallback={<div>Loading analytics...</div>}>
+              <AnalyticsDashboard platformData={platformData} />
+            </Suspense>
+          </>
+        ) : showBadges ? (
+          <>
+            <button onClick={() => setShowBadges(false)} className="back-btn">
+              ← Back to Main
+            </button>
+            <BadgeCollection />
+          </>
+        ) : showGoals ? (
+          <>
+            <button onClick={() => setShowGoals(false)} className="back-btn">
+              ← Back to Main
+            </button>
+            <GoalDashboard />
+          </>
+        ) : (
+          <>
+            {/* Glass Hover Navbar */}
+            <div
+              style={{
+                textAlign: "center",
+                marginBottom: "20px",
+                background: "rgba(255, 255, 255, 0.15)",
+                backdropFilter: "blur(8px)",
+                height: "60px",
+                borderRadius: "10px",
+                display: "flex",
+                gap: "1rem",
+                alignItems: "center",
+                justifyContent: "space-evenly",
+                padding: "0.5rem 1rem"
+              }}
+            >
+              <button
+                onClick={() => setShowDemo(true)}
+                onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+                onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                style={btnStyle}
+              >
+                View Demo
+              </button>
 
-          <div className="overall">
-            <h2>Overall Progress</h2>
-            <CircularProgress
-              solved={totalSolved}
-              goal={OVERALL_GOAL}
-              color="#4caf50"
+              <button
+                onClick={() => setShowAnalytics(true)}
+                onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+                onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                style={btnStyle}
+              >
+                View Analytics
+              </button>
+
+              <button
+                onClick={() => setShowBadges(true)}
+                onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+                onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                style={btnStyle}
+              >
+                🏆 Achievements
+              </button>
+
+              <button
+                onClick={() => setShowGoals(true)}
+                onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+                onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                style={btnStyle}
+              >
+                🎯 Goals
+              </button>
+            </div>
+
+            <ThemeToggle />
+
+            <h1>GrindMap</h1>
+
+            <UsernameInputs
+              usernames={usernames}
+              onChange={handleChange}
+              onFetch={fetchAll}
+              loading={loading}
             />
-            <p>
-              {totalSolved} / {OVERALL_GOAL} problems solved
-            </p>
-          </div>
 
-          <div className="platforms-grid">
-            {PLATFORMS.map((plat) => (
-              <PlatformCard
-                key={plat.key}
-                platform={plat}
-                data={platformData[plat.key]}
-                expanded={expanded}
-                onToggle={toggleExpand}
-                percentage={getPlatformPercentage(plat.key)}
-              />
-            ))}
-          </div>
+            <div className="overall">
+              <h2>Overall Progress</h2>
+              <CircularProgress solved={totalSolved} goal={OVERALL_GOAL} color="#4caf50" />
+              <p>
+                {totalSolved} / {OVERALL_GOAL} problems solved
+              </p>
+            </div>
 
-          {/* Today's Activity */}
-          <div className="today-activity">
-            <h2>
-              Today's Activity (
-              {today.toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-              )
-            </h2>
-            <div className="activity-list">
-              {PLATFORMS.map((plat) => {
-                const submittedToday = hasSubmittedToday(plat.key);
-                const hasData =
-                  platformData[plat.key] && !platformData[plat.key].error;
+            <div className="platforms-grid">
+              {PLATFORMS.map((plat) => (
+                <PlatformCard
+                  key={plat.key}
+                  platform={plat}
+                  data={platformData[plat.key]}
+                  expanded={expanded}
+                  onToggle={toggleExpand}
+                  percentage={getPlatformPercentage(plat.key)}
+                  loading={loading}
+                />
+              ))}
+            </div>
 
-                return (
-                  <div
-                    key={plat.key}
-                    className={`activity-item ${submittedToday ? "done" : hasData ? "active-no-sub" : "missed"}`}
-                  >
-                    <span>{plat.name}</span>
-                    <span>
-                      {submittedToday
-                        ? "✅ Coded Today"
-                        : hasData
+            {/* Today's Activity */}
+            <div className="today-activity">
+              <h2>
+                Today's Activity (
+                {today.toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+                )
+              </h2>
+              <div className="activity-list">
+                {PLATFORMS.map((plat) => {
+                  const submittedToday = hasSubmittedToday(plat.key);
+                  const hasData =
+                    platformData[plat.key] && !platformData[plat.key].error;
+
+                  return (
+                    <div
+                      key={plat.key}
+                      className={`activity-item ${
+                        submittedToday
+                          ? "done"
+                          : hasData
+                          ? "active-no-sub"
+                          : "missed"
+                      }`}
+                    >
+                      <span>{plat.name}</span>
+                      <span>
+                        {submittedToday
+                          ? "✅ Coded Today"
+                          : hasData
                           ? "✅ Active (No submission today)"
                           : "❌ No Data"}
-                    </span>
-                  </div>
-                );
-              })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
+
+const btnStyle = {
+  padding: "10px 20px",
+  fontSize: "1em",
+  border: "none",
+  background: "transparent",
+  color: "#fff",
+  borderRadius: "8px",
+  cursor: "pointer",
+};
+
+function App() {
+  return (
+    <ThemeProvider>
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
+    </ThemeProvider>
+  );
+}
+
 
 export default App;
