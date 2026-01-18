@@ -6,6 +6,8 @@ import { sendSuccess, sendError } from "../utils/response.helper.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HTTP_STATUS, MESSAGES } from "../constants/app.constants.js";
 import AtomicOperations from "../utils/atomicOperations.js";
+import DistributedSessionManager from "../utils/distributedSessionManager.js";
+import config from "../config/env.js";
 
 /**
  * JWT token expiration time
@@ -18,8 +20,8 @@ const JWT_EXPIRES_IN = '7d';
  * @returns {string} JWT token
  */
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN
+  return jwt.sign({ id: userId }, config.JWT_SECRET || process.env.JWT_SECRET, {
+    expiresIn: config.JWT_EXPIRES_IN || JWT_EXPIRES_IN
   });
 };
 
@@ -48,20 +50,34 @@ class AuthController {
     // Create new user
     const user = await User.create({ name, email, password });
 
-    // Generate token and send response
+    // Generate token and create distributed session
     const token = generateToken(user._id);
+    const sessionId = await DistributedSessionManager.createSession(user._id, {
+      email: user.email,
+      name: user.name,
+      role: user.role
+    });
+
     const userData = {
       id: user._id,
       name: user.name,
       email: user.email,
       token,
+      sessionId
     };
+
+    // Set session cookie
+    res.cookie('sessionId', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
 
     sendSuccess(res, userData, "User registered successfully", HTTP_STATUS.CREATED);
   });
 
   /**
-   * Login existing user (ATOMIC)
+   * Login existing user (ATOMIC with distributed session)
    * @route POST /api/auth/login
    */
   loginUser = asyncHandler(async (req, res) => {
@@ -98,10 +114,18 @@ class AuthController {
       );
     }
 
-    // Successful login - atomic token update
+    // Successful login - atomic token update and create distributed session
     const token = generateToken(user._id);
     await AtomicOperations.updateTokens(user._id, {
       lastLogin: new Date()
+    });
+
+    // Create distributed session
+    const sessionId = await DistributedSessionManager.createSession(user._id, {
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      loginTime: new Date().toISOString()
     });
 
     const userData = {
@@ -109,7 +133,15 @@ class AuthController {
       name: user.name,
       email: user.email,
       token,
+      sessionId
     };
+
+    // Set session cookie
+    res.cookie('sessionId', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
 
     sendSuccess(res, userData, "Login successful");
   });
@@ -132,6 +164,21 @@ class AuthController {
 
     // Redirect to frontend with token
     res.redirect(`${frontendUrl}/oauth/callback?token=${token}&userId=${user._id}&name=${encodeURIComponent(user.name)}`);
+  });
+
+  /**
+    * Logout user and destroy distributed session
+    * @route POST /api/auth/logout
+    */
+  logoutUser = asyncHandler(async (req, res) => {
+    const sessionId = req.headers['x-session-id'] || req.cookies?.sessionId;
+
+    if (sessionId) {
+      await DistributedSessionManager.deleteSession(sessionId);
+    }
+
+    res.clearCookie('sessionId');
+    sendSuccess(res, null, "Logout successful");
   });
 
   /**
