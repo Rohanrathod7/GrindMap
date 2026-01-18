@@ -82,8 +82,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Index for performance
-userSchema.index({ email: 1 });
+// Indexes for performance (removed duplicate email index)
 userSchema.index({ emailVerificationToken: 1 });
 userSchema.index({ passwordResetToken: 1 });
 

@@ -7,6 +7,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { HTTP_STATUS, MESSAGES } from "../constants/app.constants.js";
 import AtomicOperations from "../utils/atomicOperations.js";
 import DistributedSessionManager from "../utils/distributedSessionManager.js";
+import config from "../config/env.js";
 
 /**
  * JWT token expiration time
@@ -19,8 +20,8 @@ const JWT_EXPIRES_IN = '7d';
  * @returns {string} JWT token
  */
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { 
-    expiresIn: JWT_EXPIRES_IN 
+  return jwt.sign({ id: userId }, config.JWT_SECRET, { 
+    expiresIn: config.JWT_EXPIRES_IN 
   });
 };
 
