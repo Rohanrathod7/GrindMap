@@ -69,13 +69,33 @@ export async function scrapeLeetCode(username) {
         getText('[class*="reputation"]')
       );
 
+      // Extract submission calendar
+      let submissionCalendar = null;
+      try {
+        const scripts = document.querySelectorAll('script');
+        for (let script of scripts) {
+          const text = script.textContent;
+          if (text.includes('submissionCalendar')) {
+            const match = text.match(/submissionCalendar\s*:\s*(\{[^}]*\})/);
+            if (match) {
+              submissionCalendar = JSON.parse(match[1]);
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+
       return {
         totalSolved: totalSolved || 0,
         easySolved: easySolved || 0,
         mediumSolved: mediumSolved || 0,
         hardSolved: hardSolved || 0,
         ranking: ranking || null,
-        reputation: reputation || null
+        reputation: reputation || null,
+        submissionCalendar,
+        totalQuestions: 2500 // Approximate total LeetCode problems
       };
     });
 
